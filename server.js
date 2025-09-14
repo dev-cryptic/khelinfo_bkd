@@ -8,7 +8,10 @@ const app = express();
 // Enable CORS for your frontend
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: [
+      "http://localhost:5173",         // local dev
+      "https://khelinfo-frontend.vercel.app" // vercel frontend
+    ],
     methods: ["GET", "POST", "PUT", "DELETE"],
   })
 );
