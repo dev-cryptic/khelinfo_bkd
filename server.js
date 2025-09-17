@@ -4,142 +4,128 @@ import axios from "axios";
 import cors from "cors";
 
 const app = express();
+const API_TOKEN = process.env.API_TOKEN;
 
-// Enable CORS for your frontend
 app.use(
   cors({
     origin: [
-      "http://localhost:5173",         // local dev
-      "https://khelinfo-frontend.vercel.app" // vercel frontend
+      "http://localhost:5173",         
+      "https://khelinfo-frontend.vercel.app"
     ],
     methods: ["GET", "POST", "PUT", "DELETE"],
   })
 );
+app.use(express.json());
 
-const API_TOKEN = process.env.API_TOKEN;
-
-// === In-memory cache for countries ===
+// ===== In-memory caches =====
 let countriesCache = [];
+let rankingsCache = [];
+let liveScoresCache = [];
+let teamsCache = [];
+let playersCache = [];
 
-// ================== Routes ================== //
-
-// 1️⃣ Countries
-app.get("/api/countries", async (req, res) => {
+// ===== Fetch Functions =====
+const fetchCountries = async () => {
   try {
-    if (countriesCache.length) {
-      return res.json({ data: countriesCache });
-    }
-
     const response = await axios.get(
       `https://cricket.sportmonks.com/api/v2.0/countries?api_token=${API_TOKEN}`
     );
-
-    countriesCache = response.data.data.map((country) => ({
-      id: country.id,
-      name: country.name,
-    }));
-
-    res.json({ data: countriesCache });
+    countriesCache = response.data.data.map((c) => ({ id: c.id, name: c.name }));
   } catch (err) {
-    console.error(err.response?.data || err.message);
-    res
-      .status(err.response?.status || 500)
-      .json({ error: "Failed to fetch countries" });
+    console.error("Countries fetch error:", err.response?.data || err.message);
   }
-});
+};
 
-// 2️⃣ Team Rankings
-app.get("/api/rankings", async (req, res) => {
+const fetchRankings = async () => {
   try {
     const response = await axios.get(
       "https://cricket.sportmonks.com/api/v2.0/team-rankings",
-      {
-        params: { api_token: API_TOKEN },
-      }
+      { params: { api_token: API_TOKEN } }
     );
-    res.json(response.data);
+    rankingsCache = response.data.data || [];
   } catch (err) {
-    console.error(err.response?.data || err.message);
-    res.status(err.response?.status || 500).json({ error: err.message });
+    console.error("Rankings fetch error:", err.response?.data || err.message);
   }
-});
+};
 
-// 3️⃣ Live Scores (with runs, batting, bowling)
-app.get("/api/livescores", async (req, res) => {
+const fetchLiveScores = async () => {
   try {
     const response = await axios.get(
       "https://cricket.sportmonks.com/api/v2.0/livescores",
-      {
-        params: {
-          api_token: API_TOKEN,
-          include: "runs,batting,bowling",
-        },
-      }
+      { params: { api_token: API_TOKEN, include: "runs,batting,bowling" } }
     );
-    res.json(response.data);
+    liveScoresCache = response.data.data || [];
   } catch (err) {
-    console.error(err.response?.data || err.message);
-    res.status(err.response?.status || 500).json({ error: err.message });
+    console.error("LiveScores fetch error:", err.response?.data || err.message);
   }
-});
+};
 
-// 4️⃣ Teams (extra endpoint your frontend needs)
-app.get("/api/teams", async (req, res) => {
+const fetchTeams = async () => {
   try {
     const response = await axios.get(
       `https://cricket.sportmonks.com/api/v2.0/teams?api_token=${API_TOKEN}`
     );
-
-    const teams = response.data.data.map((team) => ({
+    teamsCache = response.data.data.map((team) => ({
       id: team.id,
       name: team.name,
       code: team.code,
       image_path: team.image_path,
       country_id: team.country_id,
     }));
-
-    res.json({ data: teams });
   } catch (err) {
-    console.error(err.response?.data || err.message);
-    res.status(err.response?.status || 500).json({ error: "Failed to fetch teams" });
+    console.error("Teams fetch error:", err.response?.data || err.message);
   }
-});
+};
 
-
-app.get("/api/players", async (req, res) => {
+const fetchPlayers = async () => {
   try {
     const response = await axios.get(
       `https://cricket.sportmonks.com/api/v2.0/players?api_token=${API_TOKEN}`
     );
-
-    const players = response.data.data.map((player) => ({
-      id: player.id,
-      fullname: player.fullname,
-      firstname: player.firstname,
-      lastname: player.lastname,
-      dateofbirth: player.dateofbirth,
-      gender: player.gender,
-      battingstyle: player.battingstyle,
-      bowlingstyle: player.bowlingstyle,
-      position: player.position?.name || "N/A",
-      country_id: player.country_id,
-      image_path: player.image_path,
+    playersCache = response.data.data.map((p) => ({
+      id: p.id,
+      fullname: p.fullname,
+      firstname: p.firstname,
+      lastname: p.lastname,
+      dateofbirth: p.dateofbirth,
+      gender: p.gender,
+      battingstyle: p.battingstyle,
+      bowlingstyle: p.bowlingstyle,
+      position: p.position?.name || "N/A",
+      country_id: p.country_id,
+      image_path: p.image_path,
     }));
-
-    res.json({ data: players });
   } catch (err) {
-    console.error(err.response?.data || err.message);
-    res
-      .status(err.response?.status || 500)
-      .json({ error: "Failed to fetch players" });
+    console.error("Players fetch error:", err.response?.data || err.message);
   }
-});
+};
 
-app.get("/ping", (req, res) => {
-  res.send("pong");
-});
+// ===== Initial Fetch =====
+fetchCountries();
+fetchRankings();
+fetchTeams();
+fetchPlayers();
+fetchLiveScores();
 
+// ===== Intervals =====
+// Live scores every 5 sec
+setInterval(fetchLiveScores, 5000);
 
+// Rankings every 5 minutes
+setInterval(fetchRankings, 5 * 60 * 1000);
 
-// ================== Start Server ================== //
+// Static data every 1 hour
+setInterval(fetchCountries, 60 * 60 * 1000);
+setInterval(fetchTeams, 60 * 60 * 1000);
+setInterval(fetchPlayers, 60 * 60 * 1000);
+
+// ===== Routes =====
+app.get("/api/countries", (req, res) => res.json({ data: countriesCache }));
+app.get("/api/rankings", (req, res) => res.json({ data: rankingsCache }));
+app.get("/api/livescores", (req, res) => res.json({ data: liveScoresCache }));
+app.get("/api/teams", (req, res) => res.json({ data: teamsCache }));
+app.get("/api/players", (req, res) => res.json({ data: playersCache }));
+app.get("/api/ping", (req, res) => res.status(200).send("pong"));
+
+// ===== Start Server =====
 app.listen(5000, () => console.log("✅ Server running on port 5000"));
