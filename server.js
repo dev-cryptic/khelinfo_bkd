@@ -108,8 +108,8 @@ fetchPlayers();
 fetchLiveScores();
 
 // ===== Intervals =====
-// Live scores every 5 sec
-setInterval(fetchLiveScores, 5000);
+// Live scores every 3 sec
+setInterval(fetchLiveScores, 3000);
 
 // Rankings every 5 minutes
 setInterval(fetchRankings, 5 * 60 * 1000);
