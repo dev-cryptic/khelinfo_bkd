@@ -105,5 +105,36 @@ app.get("/api/teams", async (req, res) => {
   }
 });
 
+
+app.get("/api/players", async (req, res) => {
+  try {
+    const response = await axios.get(
+      `https://cricket.sportmonks.com/api/v2.0/players?api_token=${API_TOKEN}`
+    );
+
+    const players = response.data.data.map((player) => ({
+      id: player.id,
+      fullname: player.fullname,
+      firstname: player.firstname,
+      lastname: player.lastname,
+      dateofbirth: player.dateofbirth,
+      gender: player.gender,
+      battingstyle: player.battingstyle,
+      bowlingstyle: player.bowlingstyle,
+      position: player.position?.name || "N/A",
+      country_id: player.country_id,
+      image_path: player.image_path,
+    }));
+
+    res.json({ data: players });
+  } catch (err) {
+    console.error(err.response?.data || err.message);
+    res
+      .status(err.response?.status || 500)
+      .json({ error: "Failed to fetch players" });
+  }
+});
+
+
 // ================== Start Server ================== //
 app.listen(5000, () => console.log("✅ Server running on port 5000"));
