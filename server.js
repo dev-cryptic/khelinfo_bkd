@@ -53,26 +53,6 @@ const fetchRankings = async () => {
   }
 };
 
-const fetchLiveScores = async () => {
-  try {
-    const response = await axios.get(
-      "https://cricket.sportmonks.com/api/v2.0/livescores",
-      { params: { api_token: API_TOKEN, include: "runs,batting,bowling" } }
-    );
-    const newScores = response.data.data || [];
-
-    // Add new scores to cache
-    liveScoresCache.push(...newScores);
-
-    // Keep only the last 6 matches
-    if (liveScoresCache.length > 6) {
-      liveScoresCache = liveScoresCache.slice(-6);
-    }
-  } catch (err) {
-    console.error("LiveScores fetch error:", err.response?.data || err.message);
-  }
-};
-
 const fetchTeams = async () => {
   try {
     const { data } = await axios.get(
@@ -168,21 +148,56 @@ const fetchScores = async () => {
   }
 };
 
+// ===== Fetch Enriched Live Scores (batting, lineup, balls) =====
+const fetchEnrichedLiveScores = async () => {
+  try {
+    const urls = [
+      `https://cricket.sportmonks.com/api/v2.0/livescores?api_token=${API_TOKEN}&include=batting`,
+      `https://cricket.sportmonks.com/api/v2.0/livescores?api_token=${API_TOKEN}&include=lineup`,
+      `https://cricket.sportmonks.com/api/v2.0/livescores?api_token=${API_TOKEN}&include=balls`,
+    ];
+
+    const [battingResp, lineupResp, ballsResp] = await Promise.all(
+      urls.map((url) => axios.get(url))
+    );
+
+    const battingData = battingResp.data.data || [];
+    const lineupData = lineupResp.data.data || [];
+    const ballsData = ballsResp.data.data || [];
+
+    liveScoresCache = battingData.map((match) => {
+      const lineup = lineupData.find((m) => m.id === match.id);
+      const balls = ballsData.find((m) => m.id === match.id);
+      return {
+        ...match,
+        lineup: lineup?.lineup || [],
+        balls: balls?.balls || [],
+      };
+    });
+
+    if (liveScoresCache.length > 6) {
+      liveScoresCache = liveScoresCache.slice(-6);
+    }
+  } catch (err) {
+    console.error("Enriched LiveScores fetch error:", err.response?.data || err.message);
+  }
+};
+
 // ===== Initial Fetch =====
 fetchCountries();
 fetchRankings();
 fetchTeams();
 fetchPlayers();
-fetchLiveScores();
 fetchLeagues();
 fetchFixtures();
 fetchSeasons();
 fetchOfficials();
 fetchScores();
+fetchEnrichedLiveScores();
 
 // ===== Intervals =====
-// Live scores every 3 sec
-setInterval(fetchLiveScores, 3000);
+// Enriched live scores every 3 sec
+setInterval(fetchEnrichedLiveScores, 3000);
 
 // Rankings every 5 minutes
 setInterval(fetchRankings, 5 * 60 * 1000);
