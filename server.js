@@ -29,6 +29,8 @@ let seasonsCache = [];
 let officialsCache = [];
 let scoresCache = [];
 
+const MAX_LIVE_MATCHES = 10;
+
 // ===== Fetch Functions =====
 const fetchCountries = async () => {
   try {
@@ -50,6 +52,35 @@ const fetchRankings = async () => {
     rankingsCache = data.data || [];
   } catch (err) {
     console.error("Rankings fetch error:", err.response?.data || err.message);
+  }
+};
+
+const fetchLiveScores = async () => {
+  try {
+    const response = await axios.get(
+      "https://cricket.sportmonks.com/api/v2.0/livescores",
+      { params: { api_token: API_TOKEN, include: "runs,batting,bowling" } }
+    );
+    const newScores = response.data.data || [];
+
+    // Merge new scores into cache
+    newScores.forEach((match) => {
+      const index = liveScoresCache.findIndex((m) => m.id === match.id);
+      if (index > -1) {
+        // Update existing match
+        liveScoresCache[index] = match;
+      } else {
+        // Add new match
+        liveScoresCache.push(match);
+      }
+    });
+
+    // Keep only last MAX_LIVE_MATCHES matches
+    if (liveScoresCache.length > MAX_LIVE_MATCHES) {
+      liveScoresCache = liveScoresCache.slice(-MAX_LIVE_MATCHES);
+    }
+  } catch (err) {
+    console.error("LiveScores fetch error:", err.response?.data || err.message);
   }
 };
 
@@ -148,67 +179,21 @@ const fetchScores = async () => {
   }
 };
 
-// ===== Fetch Enriched Live Scores (batting, lineup, balls) =====
-const fetchEnrichedLiveScores = async () => {
-  try {
-    const urls = [
-      `https://cricket.sportmonks.com/api/v2.0/livescores?api_token=${API_TOKEN}&include=batting`,
-      `https://cricket.sportmonks.com/api/v2.0/livescores?api_token=${API_TOKEN}&include=lineup`,
-      `https://cricket.sportmonks.com/api/v2.0/livescores?api_token=${API_TOKEN}&include=balls`,
-    ];
-
-    const [battingResp, lineupResp, ballsResp] = await Promise.all(
-      urls.map((url) => axios.get(url))
-    );
-
-    const battingData = battingResp.data.data || [];
-    const lineupData = lineupResp.data.data || [];
-    const ballsData = ballsResp.data.data || [];
-
-    const newMatches = battingData.map((match) => {
-      const lineup = lineupData.find((m) => m.id === match.id);
-      const balls = ballsData.find((m) => m.id === match.id);
-      return {
-        ...match,
-        lineup: lineup?.lineup || [],
-        balls: balls?.balls || [],
-      };
-    });
-
-    // Merge new matches into cache and update existing matches
-    newMatches.forEach((match) => {
-      const index = liveScoresCache.findIndex((m) => m.id === match.id);
-      if (index > -1) {
-        liveScoresCache[index] = match; // update existing
-      } else {
-        liveScoresCache.push(match); // add new
-      }
-    });
-
-    // Keep only the last 10 matches
-    if (liveScoresCache.length > 10) {
-      liveScoresCache = liveScoresCache.slice(-10);
-    }
-  } catch (err) {
-    console.error("Enriched LiveScores fetch error:", err.response?.data || err.message);
-  }
-};
-
 // ===== Initial Fetch =====
 fetchCountries();
 fetchRankings();
 fetchTeams();
 fetchPlayers();
+fetchLiveScores();
 fetchLeagues();
 fetchFixtures();
 fetchSeasons();
 fetchOfficials();
 fetchScores();
-fetchEnrichedLiveScores();
 
 // ===== Intervals =====
-// Enriched live scores every 3 sec
-setInterval(fetchEnrichedLiveScores, 3000);
+// Live scores every 3 sec
+setInterval(fetchLiveScores, 3000);
 
 // Rankings every 5 minutes
 setInterval(fetchRankings, 5 * 60 * 1000);
