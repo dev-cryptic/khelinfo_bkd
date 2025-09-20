@@ -165,7 +165,7 @@ const fetchEnrichedLiveScores = async () => {
     const lineupData = lineupResp.data.data || [];
     const ballsData = ballsResp.data.data || [];
 
-    liveScoresCache = battingData.map((match) => {
+    const newMatches = battingData.map((match) => {
       const lineup = lineupData.find((m) => m.id === match.id);
       const balls = ballsData.find((m) => m.id === match.id);
       return {
@@ -175,8 +175,19 @@ const fetchEnrichedLiveScores = async () => {
       };
     });
 
-    if (liveScoresCache.length > 6) {
-      liveScoresCache = liveScoresCache.slice(-6);
+    // Merge new matches into cache and update existing matches
+    newMatches.forEach((match) => {
+      const index = liveScoresCache.findIndex((m) => m.id === match.id);
+      if (index > -1) {
+        liveScoresCache[index] = match; // update existing
+      } else {
+        liveScoresCache.push(match); // add new
+      }
+    });
+
+    // Keep only the last 10 matches
+    if (liveScoresCache.length > 10) {
+      liveScoresCache = liveScoresCache.slice(-10);
     }
   } catch (err) {
     console.error("Enriched LiveScores fetch error:", err.response?.data || err.message);
