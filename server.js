@@ -239,6 +239,7 @@ const API_TOKEN = process.env.API_TOKEN;
 app.use(
   cors({
     origin: [
+      "https://atest.khelinfo.in",
       "http://localhost:5173",
       "https://khelinfo-frontend.vercel.app",
     ],
